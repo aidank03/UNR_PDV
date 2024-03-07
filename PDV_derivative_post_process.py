@@ -72,9 +72,12 @@ def calc_duration_melt(t_avg_deriv, time, vel, deriv, deriv_2):
     f2 = interp1d(t_avg_deriv, deriv_2)
 
     # Interpolate at some new points
-    x1 = np.arange(45, 75, 1e-4)
+    # find local max and min
+    t_start = 45
+    t_end = 75
+    x1 = np.arange(t_start, t_end, 1e-4)
     y1_new = f1(x1)
-    x2 = np.arange(45, 75, 1e-4)
+    x2 = np.arange(t_start, t_end, 1e-4)
     y2_new = f2(x2)
     
     # Find zero crossings
@@ -90,9 +93,6 @@ def calc_duration_melt(t_avg_deriv, time, vel, deriv, deriv_2):
     valleys_deriv2, _ = find_peaks(-np.array(y2_new))
     extrema_deriv2 = np.sort(np.concatenate((peaks_deriv2, valleys_deriv2)))
     
-    # find local max and min between ~58 and 68 ns
-    t_start = 45
-    t_end = 70
     
     # Find the indices that correspond to the time range
     idx_start = np.where(x2 >= t_start)[0][0]
@@ -125,8 +125,7 @@ def calc_duration_melt(t_avg_deriv, time, vel, deriv, deriv_2):
     
     #---
     # calculate max negative velocity 
-    # find local max and min between ~53 and 68 ns
-    tc_start = 25
+    tc_start = 45
     tc_end = 75
     
     # find compression region population
