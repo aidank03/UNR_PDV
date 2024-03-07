@@ -119,7 +119,7 @@ def calc_duration_melt(t_avg_deriv, time, vel, deriv, deriv_2):
     # calculate time of max compression
     # first zero crossing of jerk before local max of jerk
     max_comp_loc = np.where(np.array(x2)[zc_range] <= max_peak_time_2)
-    
+    # plot first zero crossing before melt - max compression
     ax3.plot(np.array(x2)[zc_range][max_comp_loc][-1], np.array(y2_new)[zc_range][-1], 'b*',ms=3)
     t_max_comp = np.array(x2)[zc_range][max_comp_loc][-1]
     
@@ -193,17 +193,6 @@ def calc_jerk_signal_noise(time, vel, deriv_2):
     jerk_sig_noise_ratio = (data_max_jerk / base_jerk_rms)
     
     return base_jerk_rms, data_max_jerk, jerk_sig_noise_ratio
-    
-
-        
-def create_synthetic_dataset(length, average, std_dev, frequency):
-    # Generate time values
-    t = np.linspace(0, 2 * np.pi, length)
-    # Generate synthetic dataset
-    dataset = average + std_dev * np.sin(frequency * t)
-    
-    return dataset
-
 
 
 def calc_stats(base, comp_max3):
