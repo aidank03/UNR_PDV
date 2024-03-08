@@ -22,7 +22,7 @@ from scipy.signal import savgol_filter
 
 
 # select shot
-shot = ['96']
+shot = ['94']
 
 # create figure
 fig, (ax1,ax2,ax3) = plt.subplots(3,1,figsize=(6,7), sharex=True)
@@ -194,12 +194,139 @@ def calc_jerk_signal_noise(time, vel, deriv_2):
     
     return base_jerk_rms, data_max_jerk, jerk_sig_noise_ratio
 
-
+# calculate t-test statistics 
+# Welch t-test
 def calc_stats(base, comp_max3):
     # Perform T-test
     t_statistic3, p_value3 = stats.ttest_ind(comp_max3, np.zeros(3), equal_var=False)  
     
     return t_statistic3, p_value3
+
+# plot the SMASH SIRHEN ROI along with the velocity-history
+def plot_ROI(shot_num,center_times,smoothed_velocity):
+    
+    # create figure
+    fig2, (ax_roi) = plt.subplots(1,1,figsize=(5,4))
+
+    # width "height" of ROI in m/s
+    roi_width = 150
+    
+    
+    if '10197' in shot_num:
+        # Define the ROI data
+        ROI_data = [
+            [-1e-7, 0 , roi_width], 
+            [0, 0, roi_width], 
+            [54e-9, -5, roi_width], 
+            [57.2e-9, -0.5, roi_width], 
+            [59.6e-9, 5.2, roi_width], 
+            [61.2e-9, 19.8, roi_width], 
+            [63.2e-9, 59.5, roi_width], 
+            [65.2e-9, 97.1, roi_width], 
+            [67.2e-9, 128, roi_width], 
+            [68e-9, 140.2, roi_width], 
+            [69.2e-9, 159, roi_width], 
+            [71.2e-9, 197.7, roi_width], 
+            [73.2e-9, 241.2, roi_width], 
+            [76.4e-9, 315.6, roi_width], 
+            [78.4e-9, 373.6, roi_width], 
+            [80.4e-9, 444, roi_width], 
+            [82.2e-9, 529.4, roi_width], 
+            [84.4e-9, 629.8, roi_width], 
+            [87.2e-9, 775.2, roi_width], 
+            [90.4e-9, 1022, roi_width], 
+            [94.4e-9, 1476, roi_width], 
+            [110e-9, 1500, roi_width]]
+    
+    if '10196' in shot_num:
+        ROI_data = [
+            [-1e-7, 0, roi_width],
+            [0, 0, roi_width],
+            [54e-9, -5, roi_width],
+            [57.2e-9, -3, roi_width],
+            [61.2e-9, 14, roi_width],
+            [63.2e-9, 49.6, roi_width],
+            [65.2e-9, 82.3, roi_width],
+            [67.2e-9, 113.6, roi_width],
+            [68e-9, 126.3, roi_width],
+            [69.2e-9, 144.2, roi_width],
+            [71.2e-9, 175.2, roi_width],
+            [73.2e-9, 211, roi_width],
+            [76.4e-9, 276, roi_width],
+            [78.4e-9, 328, roi_width],
+            [80.4e-9, 389, roi_width],
+            [84.4e-9, 560, roi_width],
+            [87.2e-9, 715, roi_width],
+            [90.4e-9, 899, roi_width],
+            [94.4e-9, 1326, roi_width],
+            [110e-9, 1400, roi_width]]
+     
+    if '10195' in shot_num: 
+        ROI_data = [
+            [-1e-7, 0, roi_width],
+            [0, 0, roi_width],
+            [54e-9, -3.5, roi_width],
+            [57e-9, -2.85, roi_width],
+            [61.2e-9, 15.5, roi_width],
+            [63.2e-9, 40.9, roi_width],
+            [65.2e-9, 88.5, roi_width],
+            [67.2e-9, 128.4, roi_width],
+            [68e-9, 136.8, roi_width],
+            [69.2e-9, 145, roi_width],
+            [71.2e-9, 165, roi_width],
+            [73.2e-9, 189, roi_width],
+            [74.4e-9, 212, roi_width],
+            [76e-9, 248, roi_width],
+            [78.2e-9, 400, roi_width],
+            [80e-9, 420, roi_width],
+            [84.4e-9, 662, roi_width],
+            [90.4e-9, 1084, roi_width],
+            [94.4e-9, 1267, roi_width],
+            [110e-9, 1400, roi_width]]
+    
+    if '10194' in shot_num:
+        ROI_data = [
+            [-1e-7, 0, roi_width],
+            [0, 0, roi_width],
+            [54e-9, -5, roi_width],
+            [57e-9, 0, roi_width],
+            [61.2e-9, 10, roi_width],
+            [63.2e-9, 48, roi_width],
+            [65.2e-9, 93.5, roi_width],
+            [67.2e-9, 115, roi_width],
+            [68e-9, 124, roi_width],
+            [69.2e-9, 134.9, roi_width],
+            [71.2e-9, 171, roi_width],
+            [73.2e-9, 213, roi_width],
+            [76.2e-9, 295, roi_width],
+            [78.2e-9, 350, roi_width],
+            [80.2e-9, 419.3, roi_width],
+            [84.2e-9, 665, roi_width],
+            [90.2e-9, 1081, roi_width],
+            [94.2e-9, 1328, roi_width],
+            [110e-9, 1400, roi_width]]
+    
+    # Convert the data to numpy array for easier manipulation
+    ROI_data = np.array(ROI_data)
+    
+    # Extract time, velocity, and width columns
+    time = ROI_data[:, 0]*1e9
+    velocity = ROI_data[:, 1]
+    roi_widths = ROI_data[:, 2]
+    
+    # Calculate the minimum and maximum values of the ROI
+    roi_min = velocity - roi_widths / 2
+    roi_max = velocity + roi_widths / 2
+    
+    # Plot the results
+    ax_roi.plot(time, roi_min, 'k--', label='ROI Min')
+    ax_roi.plot(time, roi_max, 'k--', label='ROI Max')
+    ax_roi.plot(center_times,smoothed_velocity,'-',markersize=markersize,linewidth=linewidth, color = [1,0.7,0.3])
+    
+    ax_roi.set_xlabel('Time [ns]', fontsize=8)
+    ax_roi.set_ylabel('Velocity [m/s]', fontsize=8)
+    ax_roi.set_title('%.f ROI with %s m/s width' %(int(shot_num), roi_width), fontsize=8)
+    fig2.set_dpi(300)
         
 
 
@@ -269,6 +396,9 @@ if '94' in shot:
         print('Baseline jerk (-100 to 20 ns) RMS: ', str(round(baseline_rms_jerk,3)))
         print('Maximum jerk: ', str(round(data_max_jerk,3)), 'nm/ns^3')
         print('Jerk signal to noise ratio: ', str(round(jerk_sig_noise_ratio,3)))
+        
+        ## option to generate a second figure and plot the ROI with the velocity-history
+        plot_ROI('10194',center_times94,smoothed_velocity94_SG)
 
 
 
@@ -337,6 +467,9 @@ if '95' in shot:
         print('Maximum jerk: ', str(round(data_max_jerk,3)), 'nm/ns^3')
         print('Jerk signal to noise ratio: ', str(round(jerk_sig_noise_ratio,3)))
         
+        ## option to generate a second figure and plot the ROI with the velocity-history
+        plot_ROI('10195',center_times95,smoothed_velocity95_SG)
+        
         
         
         
@@ -404,6 +537,9 @@ if '96' in shot:
         print('Baseline jerk (-100 to 20 ns) RMS: ', str(round(baseline_rms_jerk,3)))
         print('Maximum jerk: ', str(round(data_max_jerk,3)), 'nm/ns^3')
         print('Jerk signal to noise ratio: ', str(round(jerk_sig_noise_ratio,3)))
+        
+        ## option to generate a second figure and plot the ROI with the velocity-history
+        plot_ROI('10196',center_times96,smoothed_velocity96_SG)
 
     
 
@@ -471,6 +607,9 @@ if '97' in shot:
         print('Baseline jerk (-100 to 20 ns) RMS: ', str(round(baseline_rms_jerk,3)))
         print('Maximum jerk: ', str(round(data_max_jerk,3)), 'nm/ns^3')
         print('Jerk signal to noise ratio: ', str(round(jerk_sig_noise_ratio,3)))
+        
+        ## option to generate a second figure and plot the ROI with the velocity-history
+        plot_ROI('10197',center_times97,smoothed_velocity97_SG)
         
 
 
