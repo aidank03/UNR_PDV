@@ -1,11 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Mar  7 12:55:10 2024
 
+"""
 @author: Aidanklemmer
 University of Nevada, Reno
 Aidanklemmer@outlook.com
+3/9/24
 """
 
 ### PDV post-processing 
@@ -22,7 +20,7 @@ from scipy.signal import savgol_filter
 
 
 # select shot
-shot = ['94']
+shot = ['97']
 
 # create figure
 fig, (ax1,ax2,ax3) = plt.subplots(3,1,figsize=(6,7), sharex=True)
@@ -65,65 +63,75 @@ def calc_SG_deriv(time, vel, win, order):
     deriv_2 = SG_filter_2 * 1e-18
     return time, deriv, deriv_2
 
-# function for calculating melt parameters
-def calc_duration_melt(t_avg_deriv, time, vel, deriv, deriv_2):
+# function for calculating physical parameters from vel, accel, and jerk
+def calc_parameters(t_avg_deriv, time, vel, deriv, deriv_2):
+    
     # linear interpolation
     f1 = interp1d(t_avg_deriv, deriv)
     f2 = interp1d(t_avg_deriv, deriv_2)
 
-    # Interpolate at some new points
+    # interpolate at some new points
     # find local max and min
     t_start = 45
-    t_end = 75
+    t_end = 72
+    
+    # acceleration - 1st derivative
     x1 = np.arange(t_start, t_end, 1e-4)
     y1_new = f1(x1)
+    # jerk - 2nd derivative
     x2 = np.arange(t_start, t_end, 1e-4)
     y2_new = f2(x2)
+
+    # find zero crossings
+    zero_crossings_deriv = np.where(np.diff(np.sign(y1_new)))[0] # acceleration
+    zero_crossings_deriv2 = np.where(np.diff(np.sign(y2_new)))[0] # jerk
     
-    # Find zero crossings
-    zero_crossings_deriv = np.where(np.diff(np.sign(y1_new)))[0] # not currently used 
-    zero_crossings_deriv2 = np.where(np.diff(np.sign(y2_new)))[0]
-    
-    # Find extrema using scipy.signal.find_peaks
+    # find extrema using scipy.signal.find_peaks
+    # acceleration
     peaks_deriv, _ = find_peaks(y1_new)
     valleys_deriv, _ = find_peaks(-np.array(y1_new))
-    extrema_deriv = np.sort(np.concatenate((peaks_deriv, valleys_deriv))) # not currently used
+    extrema_deriv = np.sort(np.concatenate((peaks_deriv, valleys_deriv))) 
     
+    # find extrema using scipy.signal.find_peaks
+    # jerk
     peaks_deriv2, _ = find_peaks(y2_new)
     valleys_deriv2, _ = find_peaks(-np.array(y2_new))
     extrema_deriv2 = np.sort(np.concatenate((peaks_deriv2, valleys_deriv2)))
     
-    
-    # Find the indices that correspond to the time range
+    # find the indices that correspond to the time range
+    # time domain (x1, and x2 data) are the same for both first and second derivative
     idx_start = np.where(x2 >= t_start)[0][0]
     idx_end = np.where(x2 <= t_end)[0][-1]
     
-    # Take only data that falls within the time range
-    zc_range = zero_crossings_deriv2[(zero_crossings_deriv2 >= idx_start) & (zero_crossings_deriv2 <= idx_end)]
-    extrema_range = extrema_deriv2[(extrema_deriv2 >= idx_start) & (extrema_deriv2 <= idx_end)]
+    # calculate zero crossing and extrema of acceleration
+    # take only data that falls within the time range
+    zc_range_accel = zero_crossings_deriv[(zero_crossings_deriv >= idx_start) & (zero_crossings_deriv <= idx_end)] # not currently used
+    extrema_range_accel = extrema_deriv[(extrema_deriv >= idx_start) & (extrema_deriv <= idx_end)]
+    
+    # calculate zero crossing and extrema of jerk
+    # take only data that falls within the time range
+    zc_range_jerk = zero_crossings_deriv2[(zero_crossings_deriv2 >= idx_start) & (zero_crossings_deriv2 <= idx_end)]
+    extrema_range_jerk = extrema_deriv2[(extrema_deriv2 >= idx_start) & (extrema_deriv2 <= idx_end)]
+    
+    # find max values of acceleration
+    max_peak_time_accel = x1[extrema_range_accel[np.argmax(y1_new[extrema_range_accel])]]
 
-    # find max and min values
-    max_peak_time_2 = x2[extrema_range[np.argmax(y2_new[extrema_range])]]
-    min_peak_time_2 = x2[extrema_range[np.argmin(y2_new[extrema_range])]]
+    # find max and min values of jerk
+    max_peak_time_jerk = x2[extrema_range_jerk[np.argmax(y2_new[extrema_range_jerk])]]
+    min_peak_time_jerk = x2[extrema_range_jerk[np.argmin(y2_new[extrema_range_jerk])]]
     
-    # find duration of time between them
-    duration = min_peak_time_2 - max_peak_time_2
+    # find duration of time between extrema of jerk
+    duration = min_peak_time_jerk - max_peak_time_jerk
     
-    ## plotting 
-    ax3.plot(np.array(x2)[zc_range], np.array(y2_new)[zc_range], 'co', ms=3, label='Second Derivative - Zero crossings')
-    ax3.plot(np.array(x2)[extrema_range], np.array(y2_new)[extrema_range], 'rs', ms=3,label='Second Derivative - Extrema')
-    ax3.plot(max_peak_time_2, y2_new[extrema_range[np.argmax(y2_new[extrema_range])]], 'b*',ms=3)
-    ax3.plot(min_peak_time_2, y2_new[extrema_range[np.argmin(y2_new[extrema_range])]], 'b*',ms=3)
+    # local minimum of acceleration after peak acceleration
+    min_accel_after_max_idx = np.where(np.array(x1)[extrema_range_accel] > max_peak_time_accel)
+
     
-    #---
     # calculate time of max compression
     # first zero crossing of jerk before local max of jerk
-    max_comp_loc = np.where(np.array(x2)[zc_range] <= max_peak_time_2)
-    # plot first zero crossing before melt - max compression
-    ax3.plot(np.array(x2)[zc_range][max_comp_loc][-1], np.array(y2_new)[zc_range][-1], 'b*',ms=3)
-    t_max_comp = np.array(x2)[zc_range][max_comp_loc][-1]
+    max_comp_loc = np.where(np.array(x2)[zc_range_jerk] <= max_peak_time_jerk)
+    t_max_comp = np.array(x2)[zc_range_jerk][max_comp_loc][-1]
     
-    #---
     # calculate max negative velocity 
     tc_start = 45
     tc_end = 75
@@ -141,18 +149,55 @@ def calc_duration_melt(t_avg_deriv, time, vel, deriv, deriv_2):
     time_center_3pt_comp_pop = time[center_index] # calculate the center time of the 3 pt comp population
     
     # compression displacement
-    #---
     tcomp_start = 20
     comp_end = np.where(vel  <= 0)[0][-1]
     comp_start = np.where(time >= tcomp_start)[0][0]
     comp_reg = vel[comp_start:comp_end]
     comp_disp = sc.integrate.simpson(comp_reg, dx=alpha)
+    
+    
     # print out values
-    print('Time of max jerk:', str(round(float(max_peak_time_2),3)), 'ns')
-    print('Time of min jerk:', str(round(float(min_peak_time_2),3)), 'ns')
+    # acceleration
+    print('Time of max accel: ', str(round(float(max_peak_time_accel),3)), 'ns')
+    print('Time of min accel: ', str(round(float(np.array(x1)[extrema_range_accel][min_accel_after_max_idx][0]),3)), 'ns')
+    print('Max accel: ', str(round(float(y1_new[extrema_range_accel[np.argmax(y1_new[extrema_range_accel])]]),3)), 'nm/ns^2')
+    print('Min accel: ', str(round(float(np.array(y1_new)[extrema_range_accel][min_accel_after_max_idx][0]),3)), 'nm/ns^2')
+    
+    # jerk
+    print('Time of max jerk: ', str(round(float(max_peak_time_jerk),3)), 'ns')
+    print('Time of min jerk: ', str(round(float(min_peak_time_jerk),3)), 'ns')
+    print('Max jerk: ', str(round(float(y2_new[extrema_range_jerk[np.argmax(y2_new[extrema_range_jerk])]]),3)), 'nm/ns^3')
+    print('Min jerk: ', str(round(float(y2_new[extrema_range_jerk[np.argmin(y2_new[extrema_range_jerk])]]),3)), 'nm/ns^3')
+    
     print('Compression region population: ', vel_3pt_comp_pop, 'm/s')
     print('Time of max negative velocity (center of comp. pop.): ', str(round(time_center_3pt_comp_pop,3)), 'ns')
-    print("Time of comp end (max comp):", str(round(time[comp_end],3)), 'ns')
+    print('Time of comp end (max comp displacement): ', str(round(time[comp_end],3)), 'ns')
+    
+    
+    ## plotting 
+    #---
+    # max acceleration
+    ax2.plot(max_peak_time_accel, y1_new[extrema_range_accel[np.argmax(y1_new[extrema_range_accel])]], 'gs', label='Local max acceleration', ms=3)
+    
+    # local min acceleration after local max acceleration
+    ax2.plot(np.array(x1)[extrema_range_accel][min_accel_after_max_idx][0], np.array(y1_new)[extrema_range_accel][min_accel_after_max_idx][0], 'g*',label='Local min acceleration',ms=4)
+    
+    # zero crossings of jerk
+    #ax3.plot(np.array(x2)[zc_range_jerk], np.array(y2_new)[zc_range_jerk], 'co', ms=3, label='Second Derivative - Zero crossings')
+    # extema of jerk
+    #ax3.plot(np.array(x2)[extrema_range_jerk], np.array(y2_new)[extrema_range_jerk], 'rs', ms=3,label='Second Derivative - Extrema')
+    
+    # max jerk
+    ax3.plot(max_peak_time_jerk, y2_new[extrema_range_jerk[np.argmax(y2_new[extrema_range_jerk])]], 'gs',label='Local max jerk',ms=3)
+    # min jerk
+    ax3.plot(min_peak_time_jerk, y2_new[extrema_range_jerk[np.argmin(y2_new[extrema_range_jerk])]], 'g*',label='Local min jerk',ms=4)
+
+    # first zero crossing before melt - max compression displacement
+    ax1.plot(time[comp_end], 0, 'go',label='Max displacement (v = 0)',ms=3)
+    
+    # max negative velocity 
+    ax1.plot(time[center_index], vel[center_index], 'g^', label='Max negative velocity', ms=3)
+    #---
 
     return duration, t_max_comp, comp_max_vel, comp_disp, comp_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop
 
@@ -174,25 +219,42 @@ def calc_baseline_noise(time, vel):
     return base_vel_avg, base_vel_stdev, base_vel
 
 
-# calculate signal to noise ratio for jerk 
+# calculate signal to noise ratio for jerk
 def calc_jerk_signal_noise(time, vel, deriv_2):
     # calculate the displacement by integrating the velocity
     tbase_start = -100
     tbase_end = 20
-    base_start = np.where(time >= tbase_start)[0][0]
-    base_end = np.where(time <= tbase_end)[0][-1]
-    base_jerk = np.array(deriv_2[base_start:base_end])
-    base_jerk_rms = np.sqrt(np.mean(base_jerk**2))
+    base_start_idx = np.where(time >= tbase_start)[0][0] # find index of start of baseline
+    base_end_idx = np.where(time <= tbase_end)[0][-1] # find index of end of baseline
+    base_jerk = np.array(deriv_2[base_start_idx:base_end_idx])
+    base_jerk_rms = np.sqrt(np.mean(base_jerk ** 2))  # calculate RMS
+    
     # find extrema of jerk
     data_start = 20
     data_end = 70
-    data_start = np.where(time >= data_start)[0][0]
-    data_end = np.where(time <= data_end)[0][-1]
-    data_jerk = np.array(deriv_2[data_start:data_end])
+    data_start_idx = np.where(time >= data_start)[0][0]
+    data_end_idx = np.where(time <= data_end)[0][-1]
+    data_jerk = np.array(deriv_2[data_start_idx:data_end_idx])
     data_max_jerk = np.max(data_jerk)
-    jerk_sig_noise_ratio = (data_max_jerk / base_jerk_rms)
-    
+
+    # Ensure there are always 3000 data points
+    desired_points = 3000
+    actual_points = base_end_idx - base_start_idx
+    extra_points = desired_points - actual_points
+
+    if extra_points > 0:
+        # Need to extend the data range
+        base_end_idx += extra_points
+    elif extra_points < 0:
+        # Need to reduce the data range
+        print('Error: invalid temporal range given')
+
+    base_jerk = np.array(deriv_2[base_start_idx:base_end_idx])
+    base_jerk_rms = np.sqrt(np.mean(base_jerk ** 2))  # recalculate RMS
+    jerk_sig_noise_ratio = data_max_jerk / base_jerk_rms # calculate signal to noise ratio
+
     return base_jerk_rms, data_max_jerk, jerk_sig_noise_ratio
+
 
 # calculate t-test statistics 
 # Welch t-test
@@ -201,6 +263,7 @@ def calc_stats(base, comp_max3):
     t_statistic3, p_value3 = stats.ttest_ind(comp_max3, np.zeros(3), equal_var=False)  
     
     return t_statistic3, p_value3
+
 
 # plot the SMASH SIRHEN ROI along with the velocity-history
 def plot_ROI(shot_num,center_times,smoothed_velocity):
@@ -323,6 +386,9 @@ def plot_ROI(shot_num,center_times,smoothed_velocity):
     ax_roi.plot(time, roi_max, 'k--', label='ROI Max')
     ax_roi.plot(center_times,smoothed_velocity,'-',markersize=markersize,linewidth=linewidth, color = [1,0.7,0.3])
     
+    ax_roi.set_xlim(0,80)
+    ax_roi.set_ylim(-100,500)
+    
     ax_roi.set_xlabel('Time [ns]', fontsize=8)
     ax_roi.set_ylabel('Velocity [m/s]', fontsize=8)
     ax_roi.set_title('%.f ROI with %s m/s width' %(int(shot_num), roi_width), fontsize=8)
@@ -374,13 +440,13 @@ if '94' in shot:
         
         #---
         ## calculate numerical instantaneous derivative via SG
-        t_avg_deriv, deriv, deriv_2 = calc_SG_deriv(center_times94, smoothed_velocity94_SG, winSG94, orderSG)
+        t_avg_deriv, deriv, deriv_2 = calc_SG_deriv(center_times94, smoothed_velocity94, winSG94, orderSG)
         
         ax2.plot(t_avg_deriv, deriv, color= 'black', label='Savitzky-Golay derivative, cubic fit with %.f pt SG window' %(winSG94))
         ax3.plot(t_avg_deriv, deriv_2,color= 'black',label='Savitzky-Golay 2nd derivative, cubic fit with %.f pt SG window' %(winSG94))
         
         # call functions
-        duration, t_max_comp, comp_max_vel, comp_disp, com_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop = calc_duration_melt(t_avg_deriv, center_times94, smoothed_velocity94_SG, deriv, deriv_2)
+        duration, t_max_comp, comp_max_vel, comp_disp, com_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop = calc_parameters(t_avg_deriv, center_times94, smoothed_velocity94_SG, deriv, deriv_2)
         baseline_avg, baseline_stdev, baseline = calc_baseline_noise(center_times94, smoothed_velocity94_SG)
         t_statistic3, p_value3 = calc_stats(baseline, vel_3pt_comp_pop)
         baseline_rms_jerk, data_max_jerk, jerk_sig_noise_ratio  = calc_jerk_signal_noise(center_times94, smoothed_velocity94_SG, deriv_2)
@@ -388,17 +454,15 @@ if '94' in shot:
         
         print('Offset (-100 to 20 ns): ', str(round(avg94,3)), 'm/s')
         print('Time between extrema of jerk (max-min):',str(round(duration,3)), 'ns')
-        print('Time of max compression:',str(round(t_max_comp,3)), 'ns')
         print('Max negative velocity: ', str(round(comp_max_vel,3)), 'm/s')
         print('Compression displacement:', str(round(-comp_disp*1e9,3)), 'nm')
         print('Baseline vel noise (-100 to 20 ns) and STDEV:', str(round(baseline_avg,5)), str(round(baseline_stdev,3)), 'm/s')
         print('T stat and P value for compression region (3 pt around max neg. vel.):', str(round(t_statistic3,3)), str(round(p_value3,3)))
         print('Baseline jerk (-100 to 20 ns) RMS: ', str(round(baseline_rms_jerk,3)))
-        print('Maximum jerk: ', str(round(data_max_jerk,3)), 'nm/ns^3')
         print('Jerk signal to noise ratio: ', str(round(jerk_sig_noise_ratio,3)))
         
         ## option to generate a second figure and plot the ROI with the velocity-history
-        plot_ROI('10194',center_times94,smoothed_velocity94_SG)
+        #plot_ROI('10194',center_times94,smoothed_velocity94_SG)
 
 
 
@@ -444,13 +508,13 @@ if '95' in shot:
         
         #---
         ## calculate numerical instantaneous derivative via SG
-        t_avg_deriv, deriv, deriv_2 = calc_SG_deriv(center_times95, smoothed_velocity95_SG, winSG95, orderSG)
+        t_avg_deriv, deriv, deriv_2 = calc_SG_deriv(center_times95, smoothed_velocity95, winSG95, orderSG)
         
         ax2.plot(t_avg_deriv, deriv, color= 'black', label='Savitzky-Golay derivative, cubic fit with %.f pt SG window' %(winSG95))
         ax3.plot(t_avg_deriv, deriv_2,color= 'black',label='Savitzky-Golay 2nd derivative, cubic fit with %.f pt SG window' %(winSG95))
         
         # call functions
-        duration, t_max_comp, comp_max_vel, comp_disp, com_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop = calc_duration_melt(t_avg_deriv, center_times95, smoothed_velocity95_SG, deriv, deriv_2)
+        duration, t_max_comp, comp_max_vel, comp_disp, com_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop = calc_parameters(t_avg_deriv, center_times95, smoothed_velocity95_SG, deriv, deriv_2)
         baseline_avg, baseline_stdev, baseline = calc_baseline_noise(center_times95, smoothed_velocity95_SG)
         t_statistic3, p_value3 = calc_stats(baseline, vel_3pt_comp_pop)
         baseline_rms_jerk, data_max_jerk, jerk_sig_noise_ratio  = calc_jerk_signal_noise(center_times95, smoothed_velocity95_SG, deriv_2)
@@ -458,17 +522,15 @@ if '95' in shot:
         
         print('Offset (-100 to 20 ns): ', str(round(avg95,3)), 'm/s')
         print('Time between extrema of jerk (max-min):',str(round(duration,3)), 'ns')
-        print('Time of max compression:',str(round(t_max_comp,3)), 'ns')
         print('Max negative velocity: ', str(round(comp_max_vel,3)), 'm/s')
         print('Compression displacement:', str(round(-comp_disp*1e9,3)), 'nm')
         print('Baseline vel noise (-100 to 20 ns) and STDEV:', str(round(baseline_avg,5)), str(round(baseline_stdev,3)), 'm/s')
         print('T stat and P value for compression region (3 pt around max neg. vel.):', str(round(t_statistic3,3)), str(round(p_value3,3)))
         print('Baseline jerk (-100 to 20 ns) RMS: ', str(round(baseline_rms_jerk,3)))
-        print('Maximum jerk: ', str(round(data_max_jerk,3)), 'nm/ns^3')
         print('Jerk signal to noise ratio: ', str(round(jerk_sig_noise_ratio,3)))
         
         ## option to generate a second figure and plot the ROI with the velocity-history
-        plot_ROI('10195',center_times95,smoothed_velocity95_SG)
+        #plot_ROI('10195',center_times95,smoothed_velocity95_SG)
         
         
         
@@ -515,13 +577,13 @@ if '96' in shot:
         
         #---
         ## calculate numerical instantaneous derivative via SG
-        t_avg_deriv, deriv, deriv_2 = calc_SG_deriv(center_times96, smoothed_velocity96_SG, winSG96, orderSG)
+        t_avg_deriv, deriv, deriv_2 = calc_SG_deriv(center_times96, smoothed_velocity96, winSG96, orderSG)
         
         ax2.plot(t_avg_deriv, deriv, color= 'black', label='Savitzky-Golay derivative, cubic fit with %.f pt SG window' %(winSG96))
         ax3.plot(t_avg_deriv, deriv_2,color= 'black',label='Savitzky-Golay 2nd derivative, cubic fit with %.f pt SG window' %(winSG96))
         
         # call functions
-        duration, t_max_comp, comp_max_vel, comp_disp, com_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop = calc_duration_melt(t_avg_deriv, center_times96, smoothed_velocity96_SG, deriv, deriv_2)
+        duration, t_max_comp, comp_max_vel, comp_disp, com_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop = calc_parameters(t_avg_deriv, center_times96, smoothed_velocity96_SG, deriv, deriv_2)
         baseline_avg, baseline_stdev, baseline = calc_baseline_noise(center_times96, smoothed_velocity96_SG)
         t_statistic3, p_value3 = calc_stats(baseline, vel_3pt_comp_pop)
         baseline_rms_jerk, data_max_jerk, jerk_sig_noise_ratio  = calc_jerk_signal_noise(center_times96, smoothed_velocity96_SG, deriv_2)
@@ -529,17 +591,15 @@ if '96' in shot:
         
         print('Offset (-100 to 20 ns): ', str(round(avg96,3)), 'm/s')
         print('Time between extrema of jerk (max-min):',str(round(duration,3)), 'ns')
-        print('Time of max compression:',str(round(t_max_comp,3)), 'ns')
         print('Max negative velocity: ', str(round(comp_max_vel,3)), 'm/s')
         print('Compression displacement:', str(round(-comp_disp*1e9,3)), 'nm')
         print('Baseline vel noise (-100 to 20 ns) and STDEV:', str(round(baseline_avg,5)), str(round(baseline_stdev,3)), 'm/s')
         print('T stat and P value for compression region (3 pt around max neg. vel.):', str(round(t_statistic3,3)), str(round(p_value3,3)))
         print('Baseline jerk (-100 to 20 ns) RMS: ', str(round(baseline_rms_jerk,3)))
-        print('Maximum jerk: ', str(round(data_max_jerk,3)), 'nm/ns^3')
         print('Jerk signal to noise ratio: ', str(round(jerk_sig_noise_ratio,3)))
         
         ## option to generate a second figure and plot the ROI with the velocity-history
-        plot_ROI('10196',center_times96,smoothed_velocity96_SG)
+        #plot_ROI('10196',center_times96,smoothed_velocity96_SG)
 
     
 
@@ -557,7 +617,7 @@ if '97' in shot:
         # smooth data
         # Calculate moving average using convolution
         mov_avg_win = 11
-        center_times97_1, smoothed_velocity97_1 = smooth_conv(t97, vel97, mov_avg_win)
+        center_times97_1, smoothed_velocity97_1 = smooth_conv(t97, vel97, 11)
         center_times97, smoothed_velocity97 = smooth_conv(center_times97_1, smoothed_velocity97_1, mov_avg_win)
         
         # SG filter
@@ -585,13 +645,13 @@ if '97' in shot:
         
         #---
         ## calculate numerical instantaneous derivative via SG
-        t_avg_deriv, deriv, deriv_2 = calc_SG_deriv(center_times97, smoothed_velocity97_SG, winSG97, orderSG)
+        t_avg_deriv, deriv, deriv_2 = calc_SG_deriv(center_times97, smoothed_velocity97, winSG97, orderSG)
         
         ax2.plot(t_avg_deriv, deriv, color= 'black', label='Savitzky-Golay derivative, cubic fit with %.f pt SG window' %(winSG97))
         ax3.plot(t_avg_deriv, deriv_2,color= 'black',label='Savitzky-Golay 2nd derivative, cubic fit with %.f pt SG window' %(winSG97))
         
         # call functions
-        duration, t_max_comp, comp_max_vel, comp_disp, com_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop = calc_duration_melt(t_avg_deriv, center_times97, smoothed_velocity97_SG, deriv, deriv_2)
+        duration, t_max_comp, comp_max_vel, comp_disp, com_reg, time_center_3pt_comp_pop, vel_3pt_comp_pop = calc_parameters(t_avg_deriv, center_times97, smoothed_velocity97_SG, deriv, deriv_2)
         baseline_avg, baseline_stdev, baseline = calc_baseline_noise(center_times97, smoothed_velocity97_SG)
         t_statistic3, p_value3 = calc_stats(baseline, vel_3pt_comp_pop)
         baseline_rms_jerk, data_max_jerk, jerk_sig_noise_ratio  = calc_jerk_signal_noise(center_times97, smoothed_velocity97_SG, deriv_2)
@@ -599,25 +659,23 @@ if '97' in shot:
         
         print('Offset (-100 to 20 ns): ', str(round(avg97,3)), 'm/s')
         print('Time between extrema of jerk (max-min):',str(round(duration,3)), 'ns')
-        print('Time of max compression:',str(round(t_max_comp,3)), 'ns')
         print('Max negative velocity: ', str(round(comp_max_vel,3)), 'm/s')
         print('Compression displacement:', str(round(-comp_disp*1e9,3)), 'nm')
         print('Baseline vel noise (-100 to 20 ns) and STDEV:', str(round(baseline_avg,5)), str(round(baseline_stdev,3)), 'm/s')
         print('T stat and P value for compression region (3 pt around max neg. vel.):', str(round(t_statistic3,3)), str(round(p_value3,3)))
         print('Baseline jerk (-100 to 20 ns) RMS: ', str(round(baseline_rms_jerk,3)))
-        print('Maximum jerk: ', str(round(data_max_jerk,3)), 'nm/ns^3')
         print('Jerk signal to noise ratio: ', str(round(jerk_sig_noise_ratio,3)))
         
         ## option to generate a second figure and plot the ROI with the velocity-history
-        plot_ROI('10197',center_times97,smoothed_velocity97_SG)
+        #plot_ROI('10197',center_times97,smoothed_velocity97_SG)
         
 
 
         
 ### Plotting
 ## plot options
-ax1.set_xlim(-100, 75)
-ax1.set_ylim(-10,10)
+ax1.set_xlim(-100, 80)
+ax1.set_ylim(-10,15)
 
 ax2.set_ylim(-15,30)
 ax3.set_ylim(-10,15)
