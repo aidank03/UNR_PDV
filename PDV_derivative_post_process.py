@@ -193,7 +193,7 @@ def calc_parameters(t_avg_deriv, time, vel, deriv, deriv_2):
     ax3.plot(min_peak_time_jerk, y2_new[extrema_range_jerk[np.argmin(y2_new[extrema_range_jerk])]], 'g*',label='Local min jerk',ms=4)
 
     # first zero crossing before melt - max compression displacement
-    ax1.plot(time[comp_end], 0, 'go',label='Max displacement (v = 0)',ms=3)
+    ax1.plot(time[comp_end], vel[comp_end], 'go',label='Max displacement (v = 0)',ms=3)
     
     # max negative velocity 
     ax1.plot(time[center_index], vel[center_index], 'g^', label='Max negative velocity', ms=3)
@@ -272,7 +272,7 @@ def plot_ROI(shot_num,center_times,smoothed_velocity):
     fig2, (ax_roi) = plt.subplots(1,1,figsize=(5,4))
 
     # width "height" of ROI in m/s
-    roi_width = 150
+    roi_width = 160
     
     
     if '10197' in shot_num:
@@ -387,11 +387,11 @@ def plot_ROI(shot_num,center_times,smoothed_velocity):
     ax_roi.plot(center_times,smoothed_velocity,'-',markersize=markersize,linewidth=linewidth, color = [1,0.7,0.3])
     
     ax_roi.set_xlim(0,80)
-    ax_roi.set_ylim(-100,500)
+    ax_roi.set_ylim(-150,500)
     
     ax_roi.set_xlabel('Time [ns]', fontsize=8)
     ax_roi.set_ylabel('Velocity [m/s]', fontsize=8)
-    ax_roi.set_title('%.f ROI with %s m/s width' %(int(shot_num), roi_width), fontsize=8)
+    ax_roi.set_title('Shot %.f, 4.8 ns tau, ROI with %s m/s width' %(int(shot_num), roi_width), fontsize=8)
     fig2.set_dpi(300)
         
 
