@@ -12,10 +12,8 @@ Aidanklemmer@outlook.com
 #
 import sys
 import numpy as np
-import matplotlib.pyplot as plt
 import scipy as sc
 from scipy.signal import find_peaks
-from scipy.interpolate import interp1d
 import scipy.stats as stats
 from scipy.signal import savgol_filter
 
@@ -176,7 +174,7 @@ class PDVshot:
         offsets = [unique_pt_spacing_func_tau + stat_shift,  0 + stat_shift, unique_pt_spacing_func_tau + stat_shift] # define the offsets/spacing for the 3 pt comp region population
         vel_3pt_comp_pop = self.velocity_data[0][[max_neg_vel_idx + offset for offset in offsets]] # calculate the 3 pt comp population
         vel_3pt_comp_pop = [round(val, 2) for val in vel_3pt_comp_pop] # round
-        time_center_3pt_comp_pop = self.time_data[0][max_neg_vel_idx] # calculate the center time of the 3 pt comp population   
+        #time_center_3pt_comp_pop = self.time_data[0][max_neg_vel_idx] # calculate the center time of the 3 pt comp population   
         # calculate t-test statistics 
         # Welch t-test
         self.comp_t_stat, self.comp_p_val = stats.ttest_ind(vel_3pt_comp_pop, np.zeros(3), equal_var=False)  # perform T-test
@@ -334,17 +332,17 @@ vel97 = data97[:,1][0:-1-400]
 # function calls
 #
 ### analysis for 10194
-PDV94 = PDVshot('10194', 4.8)
-PDV94.add_vel_hist(t94, vel94)
-PDV94.smooth_data(13, 1)
-PDV94.calc_SG_derivatives(80)
-PDV94.calc_baseline_noise()
-PDV94.calc_compression_disp()
-PDV94.calc_compression_t_test()
-PDV94.calc_extrema()
-PDV94.calc_peaks_derivatives()
-PDV94.calc_jerk_signal_noise()
-PDV94.calc_time_vel_0_2_4()
+PDV94 = PDVshot('10194', 4.8) # intialize shot number and tau
+PDV94.add_vel_hist(t94, vel94) # load velocity-history
+PDV94.smooth_data(13, 1) # specify moving average window size (13 pts) and number of iterations (1)
+PDV94.calc_SG_derivatives(80) # specify SG filter window size (80 pts)
+PDV94.calc_baseline_noise() # calculate baseline noise params
+PDV94.calc_compression_disp() # calculate compression displacement
+PDV94.calc_compression_t_test() # calculate compression t-test
+PDV94.calc_extrema() # calculate extrema of vel, accel, and jerk data
+PDV94.calc_peaks_derivatives() # calculate time and values of extrema of accel and jerk
+PDV94.calc_jerk_signal_noise() # calculate jerk signal to noise ratio
+PDV94.calc_time_vel_0_2_4() # calculate time at which vel = 0 m/s, 2 m/s, and 4 m/s
 
 ### analysis for 10195
 PDV95 = PDVshot('10195', 4.8)
