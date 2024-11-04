@@ -3,7 +3,7 @@
 @author: Aidan klemmer
 University of Nevada, Reno
 aidanklemmer@outlook.com
-10/27/24
+11/3/24
 """
 
 ### PDV post-processing 
@@ -161,6 +161,7 @@ class PDVshot:
         self.surf_B_end_melt_MC_full_samp_vals = []
 
         
+
         
 #---    
     
@@ -233,7 +234,7 @@ class PDVshot:
         smoothed_vel_SG = savgol_filter(self.velocity_data_filtered, window_size, order, delta=self.alpha)
         #smoothed_vel_SG = savgol_filter_werror(self.velocity_data_filtered, window_size, order, self.velocity_unc, delta=self.alpha)
         acceleration = savgol_filter(self.velocity_data_filtered, window_size, order, deriv=1, delta=self.alpha)
-        jerk = sc.signal.savgol_filter(self.velocity_data_filtered, window_size, order, deriv=2, delta=self.alpha)
+        jerk = savgol_filter(self.velocity_data_filtered, window_size, order, deriv=2, delta=self.alpha)
         acceleration = acceleration * 1e-9
         jerk = jerk * 1e-18
         self.velocity_data_filtered = smoothed_vel_SG
@@ -757,26 +758,31 @@ class PDVshot:
         simulated_surf_B_start_melt = []
         simulated_surf_B_end_melt = []
         
+        self.val_max_accel = []
+        self.time_max_jerk = []
+        self.time_min_jerk = []
+        self.surf_B_start_melt = []
+        self.surf_B_end_melt = []
+        
 
         for _ in range(num_simulations):
 
             # Generate noisy velocity data based on the given uncertainty
-
-            noisy_velocity = self.velocity_data + np.random.normal(0, self.avg_exp_vel_unc, size=len(self.velocity_data))
-
-            self.velocity_data_filtered = noisy_velocity  # Set the noisy data as the filtered data for this iteration
-
-            #print(self.velocity_data)
-            #print(noisy_velocity)
-
+            
+            self.velocity_data_filtered = []
+            
+            self.smooth_data(12, 1)
+            
+            self.velocity_data_filtered = self.velocity_data_filtered + np.random.normal(0, self.velocity_unc, size=len(self.velocity_data))
+            
             # calculate SG derivatives
             window_size = 80
             self.calc_SG_derivatives(window_size)
+            self.calc_extrema()
             self.calc_peaks_derivatives()
             
             # calculate surface B field at start and end of melt
             self.calc_surface_B_field()
-            
             
             simulated_max_accel_values.append(self.val_max_accel)
             simulated_max_jerk_times.append(self.time_max_jerk)
@@ -790,23 +796,23 @@ class PDVshot:
         
         self.val_max_accel_MC_mean.append(np.mean(simulated_max_accel_values))
         self.val_max_accel_MC_unc.append(np.std(simulated_max_accel_values))
-        self.val_max_accel_MC_full_samp_vals.append(simulated_max_accel_values)
+        self.val_max_accel_MC_full_samp_vals = simulated_max_accel_values
         
         self.time_max_jerk_MC_mean.append(np.mean(simulated_max_jerk_times))
         self.time_max_jerk_MC_unc.append(np.std(simulated_max_jerk_times))
-        self.time_max_jerk_MC_full_samp_vals.append(simulated_max_jerk_times)
+        self.time_max_jerk_MC_full_samp_vals = simulated_max_jerk_times
         
         self.time_min_jerk_MC_mean.append(np.mean(simulated_min_jerk_times))
         self.time_min_jerk_MC_unc.append(np.std(simulated_min_jerk_times))
-        self.time_min_jerk_MC_full_samp_vals.append(simulated_min_jerk_times)
+        self.time_min_jerk_MC_full_samp_vals = simulated_min_jerk_times
         
         self.surf_B_start_melt_MC_mean.append(np.mean(simulated_surf_B_start_melt))
         self.surf_B_start_melt_MC_unc.append(np.std(simulated_surf_B_start_melt))
-        self.surf_B_start_melt_MC_full_samp_vals.append(simulated_surf_B_start_melt)
+        self.surf_B_start_melt_MC_full_samp_vals = simulated_surf_B_start_melt
         
         self.surf_B_end_melt_MC_mean.append(np.mean(simulated_surf_B_end_melt))
         self.surf_B_end_melt_MC_unc.append(np.std(simulated_surf_B_end_melt))
-        self.surf_B_end_melt_MC_full_samp_vals.append(simulated_surf_B_end_melt)
+        self.surf_B_end_melt_MC_full_samp_vals = simulated_surf_B_end_melt
 
         
         
@@ -885,7 +891,7 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
 pd.set_option('display.max_colwidth', None)
-pd.set_option('display.precision', 5)
+#pd.set_option('display.precision', 50)
 
 # Loop through all combinations of shot numbers, tau values, and window functions
 for func in win_func:
@@ -923,11 +929,12 @@ for func in win_func:
 
             # Uncomment these if monte_carlo_unc is required
             
-            #shot.monte_carlo_unc(1)
-            #shot.monte_carlo_unc(100)
-            #shot.monte_carlo_unc(1000)
-            #shot.monte_carlo_unc(5000)
+            shot.monte_carlo_unc(100)
+            shot.monte_carlo_unc(1000)
+            shot.monte_carlo_unc(2000)
+            shot.monte_carlo_unc(5000)
             shot.monte_carlo_unc(10000)
+            
             
             
             # Append processed shot to data
@@ -936,11 +943,44 @@ for func in win_func:
             # Create DataFrame only once for each shot to reduce memory overhead
             dataframe = pd.DataFrame(vars(shot).items(), columns=['Variable', 'Value'])
             
-            # Uncomment if writing to Excel is required
-            folder_loc = '/Users/Aidanklemmer/Desktop/HAWK/PDV_Paper_1/Excel_calc_dump/'
-            dataframe.to_excel(f"{folder_loc}{name}_calculated_parameters_Monte_Carlo_error_Full_Sample_TEST_10000_iter.xlsx", index=False)
+            # Transpose the DataFrame to have variables as columns
+            #dataframe = dataframe.set_index('Variable').T
+            
+
+            folder_loc = '/Users/Aidanklemmer/Desktop/HAWK/PDV_Paper_1/Excel_calc_dump/ED1_PDV_post_process_Monte_Carlo_10000_iter_final_11_3_24/'
+            dataframe.to_csv(f"{folder_loc}{name}_calculated_parameters_Monte_Carlo_error_100_1000_2000_5000_10000_final_11_3_24.csv", index=False)
+
 
             
+            # Assuming `shot` is an instance of your data class, with the attributes already set
+            # Extract the specific lists from `shot`
+            data_selected = {
+                'val_max_accel_MC_full_samp_vals': shot.val_max_accel_MC_full_samp_vals,
+                'time_max_jerk_MC_full_samp_vals': shot.time_max_jerk_MC_full_samp_vals,
+                'time_min_jerk_MC_full_samp_vals': shot.time_min_jerk_MC_full_samp_vals,
+                'surf_B_start_melt_MC_full_samp_vals': shot.surf_B_start_melt_MC_full_samp_vals,
+                'surf_B_end_melt_MC_full_samp_vals': shot.surf_B_end_melt_MC_full_samp_vals
+            }
+            
+            '''
+            'val_max_accel_MC_full_samp_vals': [item for sublist in shot.val_max_accel_MC_full_samp_vals for item in sublist],
+            'time_max_jerk_MC_full_samp_vals': [item for sublist in shot.time_max_jerk_MC_full_samp_vals for item in sublist],
+            'time_min_jerk_MC_full_samp_vals': [item for sublist in shot.time_min_jerk_MC_full_samp_vals for item in sublist],
+            'surf_B_start_melt_MC_full_samp_vals': [item for sublist in shot.surf_B_start_melt_MC_full_samp_vals for item in sublist],
+            'surf_B_end_melt_MC_full_samp_vals': [item for sublist in shot.surf_B_end_melt_MC_full_samp_vals for item in sublist]
+            '''
+                
+            
+            # Convert the dictionary to a DataFrame, padding shorter lists with NaN
+            #dataframe_selected = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in data_selected.items()]))
+            dataframe_selected = pd.DataFrame(data_selected)
+            
+            # Save the DataFrame to a CSV file
+            folder_loc = '/Users/Aidanklemmer/Desktop/HAWK/PDV_Paper_1/Excel_calc_dump/ED1_PDV_post_process_Monte_Carlo_10000_iter_final_11_3_24/'
+            file_name = f"{folder_loc}{name}_Monte_Carlo_selected_parameters_final_11_3_24.csv"
+            dataframe_selected.to_csv(file_name, index=False)
+            
+                        
 
 #---
 ### results 
@@ -952,6 +992,7 @@ for func in win_func:
 
 # Monte Carlo error estimate
 
+'''
 plot_option = 'MC max accel'
 
 
@@ -965,7 +1006,7 @@ if plot_option != 'none':
 else:
     quit()
     
-
+'''
 
   
 
